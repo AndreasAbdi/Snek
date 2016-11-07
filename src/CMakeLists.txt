@@ -30,6 +30,11 @@ set (SDL_MAIN_LIBRARY "C:/programming/libraries/sdl_2_04/lib/x86/SDL2main.lib")
 INCLUDE_DIRECTORIES(${SDL_INCLUDE_DIR})
 TARGET_LINK_LIBRARIES (Snek ${SDL_LIBRARY} ${SDL_MAIN_LIBRARY})
 
+# SDL - ttf
+set (SDL_TTF_LIBRARY "C:/programming/libraries/sdl_2_ttf/lib/x86/SDL2_ttf.lib")
+INCLUDE_DIRECTORIES("C:/programming/libraries/sdl_2_ttf/include")
+TARGET_LINK_LIBRARIES(Snek ${SDL_TTF_LIBRARY})
+
 #--------------------------------------------------
 # RESOURCES
 #--------------------------------------------------

@@ -1,8 +1,10 @@
 #pragma once
 #include "SDL.h"
+#include "SDL_ttf.h"
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+#include <string>
 
 static int SCREEN_HEIGHT = 640;
 static int SCREEN_WIDTH = 640;
@@ -88,7 +90,7 @@ class Game {
 	SDL_Window * window;
 	SDL_Renderer * renderer;
 	SDL_Texture * texture;
-
+	TTF_Font * font;
 	int score = 0;
 	Snake snake;
 	Food food;
@@ -120,6 +122,17 @@ private:
 			drawRectangle(snakePart->x, snakePart->y, borderColor);
 		}
 	};
+
+	void drawUI() {
+		std::string text = "score: " + to_string(score);
+		SDL_Color textColor = { 0xFF, 0xFF, 0x00, 0xFF };
+		SDL_Surface * fontSurface = TTF_RenderText_Solid(font, text.c_str(), textColor);
+		SDL_Texture * fontTexture = SDL_CreateTextureFromSurface(renderer, fontSurface);
+		SDL_Rect textLocation = { SCREEN_HEIGHT-100-BLOCK_SIZE, BLOCK_SIZE, 100, 50 };
+		SDL_RenderCopy(renderer, fontTexture, NULL, &textLocation);
+		SDL_FreeSurface(fontSurface);
+		SDL_DestroyTexture(fontTexture);
+	}
 
 	bool snakeCollidesWithFood() {
 		SnakeSection snakeHead = snake.snakeSections.front();
@@ -169,6 +182,8 @@ public:
 		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
 		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
 			SDL_TEXTUREACCESS_STATIC, SCREEN_WIDTH, SCREEN_HEIGHT);
+		font = TTF_OpenFont("assets/Fantasque.ttf", 28);
+
 	};
 	
 	void handleKeyPress(const SDL_Event event) {
@@ -197,6 +212,7 @@ public:
 		drawBorders();
 		drawSnake();
 		drawFood();
+		drawUI();
 		SDL_RenderPresent(renderer);
 	};
 
@@ -215,9 +231,6 @@ public:
 		drawGame();
 	};
 
-	//TODO: add collision so that you die when you hit walls or yourself. 
-	
-	//TODO: add reset of game state.
 	void reset() {
 		score = 0;
 		snake = Snake(400, 400, 'l');
@@ -225,6 +238,7 @@ public:
 	};
 
 	void terminate() {
+		TTF_CloseFont(font);	
 		SDL_DestroyTexture(texture);
 		SDL_DestroyRenderer(renderer);
 		SDL_DestroyWindow(window);
@@ -235,6 +249,7 @@ public:
 
 int main(int argc, char* args[]) {
 	SDL_Init(SDL_INIT_EVERYTHING);
+	TTF_Init();
 	Game game;
 	game.start();
 
@@ -253,6 +268,7 @@ int main(int argc, char* args[]) {
 	}
 
 	game.terminate();
+	TTF_Quit();
 	SDL_Quit();
 
 	return 0;
