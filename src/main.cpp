@@ -110,16 +110,12 @@ struct Food {
 	};
 };
 
-class Game {
+class GameGraphicsDelegate {
 private:
 	SDL_Window * window;
 	SDL_Renderer * renderer;
 	SDL_Texture * texture;
 	TTF_Font * font;
-	Snake snake;
-	Food food;
-public:
-	int score = 0;
 private:
 	void drawRectangle(int x, int y, Color color, int width = 10, int height = 10) {
 		SDL_Rect rectangle = { x,y,width,height };
@@ -130,18 +126,18 @@ private:
 	void drawBorders() {
 		Color borderColor = { 0xFF, 0x00, 0x00, 0xFF };
 		drawRectangle(0, 0, borderColor, 640, 10);
-		drawRectangle(0, 630, borderColor, 640,10);
+		drawRectangle(0, 630, borderColor, 640, 10);
 		drawRectangle(0, 0, borderColor, 10, 640);
 		drawRectangle(630, 0, borderColor, 10, 640);
 	};
 
-	void drawFood() {
+	void drawFood(const Food &food) {
 		Color borderColor = { 0xFF, 0xFF, 0x00, 0xFF };
 
 		drawRectangle(food.x, food.y, borderColor);
 	};
 
-	void drawSnake() {
+	void drawSnake(const Snake &snake) {
 		for (auto snakePart = snake.snakeSections.begin(); snakePart != snake.snakeSections.end(); ++snakePart) {
 			Color borderColor = { 0x00, 0xFF, 0x00, 0xFF };
 
@@ -149,16 +145,52 @@ private:
 		}
 	};
 
-	void drawUI() {
+	void drawUI(const int &score) {
 		std::string text = "score: " + to_string(score);
 		SDL_Color textColor = { 0xFF, 0xFF, 0x00, 0xFF };
 		SDL_Surface * fontSurface = TTF_RenderText_Solid(font, text.c_str(), textColor);
 		SDL_Texture * fontTexture = SDL_CreateTextureFromSurface(renderer, fontSurface);
-		SDL_Rect textLocation = { SCREEN_HEIGHT-100-BLOCK_SIZE, BLOCK_SIZE, 100, 50 };
+		SDL_Rect textLocation = { SCREEN_HEIGHT - 100 - BLOCK_SIZE, BLOCK_SIZE, 100, 50 };
 		SDL_RenderCopy(renderer, fontTexture, NULL, &textLocation);
 		SDL_FreeSurface(fontSurface);
 		SDL_DestroyTexture(fontTexture);
 	}
+public:
+	void init() {
+		window = SDL_CreateWindow("SNEK",
+			SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+			SDL_TEXTUREACCESS_STATIC, SCREEN_WIDTH, SCREEN_HEIGHT);
+		font = TTF_OpenFont("assets/Fantasque.ttf", 28);
+	};
+
+	void drawGame(const int &score, const Snake &snake, const Food &food) {
+		SDL_RenderClear(renderer);
+		SDL_RenderCopy(renderer, texture, NULL, NULL);
+		drawBorders();
+		drawSnake(snake);
+		drawFood(food);
+		drawUI(score);
+		SDL_RenderPresent(renderer);
+	};
+
+	void terminate() {
+		TTF_CloseFont(font);
+		SDL_DestroyTexture(texture);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+	};
+};
+
+class Game {
+private:
+	GameGraphicsDelegate gameGraphicsDelegate;
+	Snake snake;
+	Food food;
+public:
+	int score = 0;
+private:
 
 	bool snakeCollidesWithFood() {
 		SnakeSection snakeHead = snake.snakeSections.front();
@@ -217,15 +249,7 @@ private:
 		food.setPosition(newX, newY );
 	};
 public:
-	Game() : snake(400,400,'l') {
-		window = SDL_CreateWindow("SNEK",
-			SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
-		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
-			SDL_TEXTUREACCESS_STATIC, SCREEN_WIDTH, SCREEN_HEIGHT);
-		font = TTF_OpenFont("assets/Fantasque.ttf", 28);
-
-	};
+	Game() : snake(400,400,'l') {};
 	
 	void handleKeyPress(const SDL_Event event) {
 		switch (event.key.keysym.sym) {
@@ -248,16 +272,11 @@ public:
 	};
 
 	void drawGame() {
-		SDL_RenderClear(renderer);
-		SDL_RenderCopy(renderer, texture, NULL, NULL);
-		drawBorders();
-		drawSnake();
-		drawFood();
-		drawUI();
-		SDL_RenderPresent(renderer);
+		gameGraphicsDelegate.drawGame(score, snake, food);
 	};
 
 	void start() {
+		gameGraphicsDelegate.init();
 		srand(0);
 		addFood();
 	};
@@ -278,10 +297,7 @@ public:
 	};
 
 	void terminate() {
-		TTF_CloseFont(font);	
-		SDL_DestroyTexture(texture);
-		SDL_DestroyRenderer(renderer);
-		SDL_DestroyWindow(window);
+		gameGraphicsDelegate.terminate();
 	};
 
 
@@ -297,45 +313,60 @@ void terminate() {
 	SDL_Quit();
 };
 
-int main(int argc, char* args[]) {
-	init();
-
-	Game game;
-	game.start();
-
-
-	bool quit = false;
+bool handleKeyEvents(Game &game) {
 	SDL_Event event;
+
+	while (SDL_PollEvent(&event) != 0) {
+		if (event.type == SDL_QUIT) {
+			return true;
+		} else if (event.type == SDL_KEYDOWN) {
+			game.handleKeyPress(event);
+		}
+	}
+	return false;
+};
+
+void updateGameTick(const Game &game,int &score, Uint32 &timePerGameTick) {
+	if (game.score == 0) {
+		score = 0;
+		timePerGameTick = DEFAULT_TIME_PER_GAME_TICK;
+	} else if (score < game.score) {
+		score++;
+		timePerGameTick = (Uint32)(DEFAULT_TIME_MULTIPLIER*timePerGameTick);
+	}
+};
+
+inline void updateTimers(Uint32 &startTick, Uint32 &timeTillNextGameTick) {
+	Uint32 currentTick = SDL_GetTicks();
+	timeTillNextGameTick += currentTick - startTick;
+	startTick = currentTick;
+};
+
+void runLoop(Game &game) {
 	Uint32 startTick = SDL_GetTicks();
-	Uint32 TimeTillNextGameTick = 0;
+	Uint32 timeTillNextGameTick = 0;
 	Uint32 timePerGameTick = DEFAULT_TIME_PER_GAME_TICK;
 	int score = game.score;
-	while (!quit) {
-		while (SDL_PollEvent(&event) != 0) {
-			if (event.type == SDL_QUIT) {
-				quit = true;
-			} else if (event.type == SDL_KEYDOWN) {
-				game.handleKeyPress(event);
-			}
+	while (true) {
+		if (handleKeyEvents(game)) {
+			break;
 		}
-		Uint32 currentTick = SDL_GetTicks();
-		TimeTillNextGameTick += currentTick - startTick;
-		startTick = currentTick;
 
-		while(TimeTillNextGameTick > timePerGameTick) {
-			TimeTillNextGameTick -= timePerGameTick;
+		updateTimers(startTick, timeTillNextGameTick);
+		while (timeTillNextGameTick > timePerGameTick) {
+			timeTillNextGameTick -= timePerGameTick;
 			game.runState();
-			if (game.score == 0) {
-				score = 0;
-				timePerGameTick = DEFAULT_TIME_PER_GAME_TICK;
-			} else if (score < game.score) {
-				score++;
-				timePerGameTick = (Uint32)(DEFAULT_TIME_MULTIPLIER*timePerGameTick);
-			}
+			updateGameTick(game, score, timePerGameTick);
 		}
 		game.drawGame();
 	}
+};
 
+int main(int argc, char* args[]) {
+	init();
+	Game game;
+	game.start();
+	runLoop(game);
 	game.terminate();
 	terminate();
 
