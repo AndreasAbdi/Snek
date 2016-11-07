@@ -128,6 +128,33 @@ private:
 		return  sameX && sameY;
 	};
 
+	bool snakeCollidesWithSelf() {
+		SnakeSection snakeHead = snake.snakeSections.front();
+		for (auto snakeSection = (snake.snakeSections.begin() + 1); snakeSection != snake.snakeSections.end(); ++snakeSection) {
+			if (snakeHead.x == snakeSection->x && snakeHead.y == snakeSection->y) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	bool snakeCollidesWithBarrier() {
+		SnakeSection snakeHead = snake.snakeSections.front();
+		bool invalidX = (snakeHead.x <= BLOCK_SIZE || snakeHead.x >= SCREEN_WIDTH - BLOCK_SIZE);
+		bool invalidY = (snakeHead.y <= BLOCK_SIZE || snakeHead.y >= SCREEN_HEIGHT - BLOCK_SIZE);
+		return invalidX || invalidY;
+	};
+
+	bool snakeCollidesWithIllegalTerrain() {
+		return snakeCollidesWithSelf() || snakeCollidesWithBarrier();
+	}
+
+	void updateFromPointGain() {
+		score++;
+		snake.addSection();
+		addFood();
+	}
+
 	void addFood() {
 		int newX = rand() % (SCREEN_WIDTH - 20) + 10;
 		newX = newX - (newX % 10);
@@ -158,6 +185,9 @@ public:
 		case SDLK_w:
 			snake.setDirection('u');
 			break;
+		case SDLK_r:
+			reset();
+			break;
 		}
 	};
 
@@ -176,17 +206,23 @@ public:
 	};
 
 	void runState() {
-		if (snakeCollidesWithFood()) {
-			score++;
-			snake.addSection();
-			addFood();
+		if (snakeCollidesWithIllegalTerrain()) {
+			reset();
+		} else if (snakeCollidesWithFood()) {
+			updateFromPointGain();
 		}
 		snake.move();	
 		drawGame();
 	};
 
 	//TODO: add collision so that you die when you hit walls or yourself. 
+	
 	//TODO: add reset of game state.
+	void reset() {
+		score = 0;
+		snake = Snake(400, 400, 'l');
+		food.setPosition(300, 300);
+	};
 
 	void terminate() {
 		SDL_DestroyTexture(texture);
