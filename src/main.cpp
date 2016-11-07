@@ -6,10 +6,11 @@
 #include <vector>
 #include <string>
 
-static int SCREEN_HEIGHT = 640;
-static int SCREEN_WIDTH = 640;
-static int BLOCK_SIZE = 10;
-
+static const int SCREEN_HEIGHT = 640;
+static const int SCREEN_WIDTH = 640;
+static const int BLOCK_SIZE = 10;
+static const int DEFAULT_TIME_PER_GAME_TICK = 250;
+static const float DEFAULT_TIME_MULTIPLIER = 0.9;
 using namespace std;
 
 struct Color {
@@ -60,7 +61,30 @@ public:
 
 	//TODO: Make it so you can't collide into yourself. so you cannot invert your direction. 
 	void setDirection(char direction) {
+		switch (direction) {
+		case 'l':
+			if (this->currentDirection == 'r') {
+				return;
+			}
+			break;
+		case 'r':
+			if (this->currentDirection == 'l') {
+				return;
+			}
+			break;
+		case 'u':
+			if (this->currentDirection == 'd') {
+				return;
+			}
+			break;
+		case 'd':
+			if (this->currentDirection == 'u') {
+				return;
+			}
+			break;
+		}
 		this->currentDirection = direction;
+
 	};
 
 	
@@ -87,13 +111,15 @@ struct Food {
 };
 
 class Game {
+private:
 	SDL_Window * window;
 	SDL_Renderer * renderer;
 	SDL_Texture * texture;
 	TTF_Font * font;
-	int score = 0;
 	Snake snake;
 	Food food;
+public:
+	int score = 0;
 private:
 	void drawRectangle(int x, int y, Color color, int width = 10, int height = 10) {
 		SDL_Rect rectangle = { x,y,width,height };
@@ -168,11 +194,26 @@ private:
 		addFood();
 	}
 
+	void generateRandomXY(int &x, int &y) {
+		x = rand() % (SCREEN_WIDTH - BLOCK_SIZE*2) + BLOCK_SIZE;
+		x = x - (x % BLOCK_SIZE);
+		y = rand() % (SCREEN_HEIGHT - BLOCK_SIZE*2) + BLOCK_SIZE;
+		y = y - (y % BLOCK_SIZE);
+	}
 	void addFood() {
-		int newX = rand() % (SCREEN_WIDTH - 20) + 10;
-		newX = newX - (newX % 10);
-		int newY = rand() % (SCREEN_HEIGHT - 20) + 10;
-		newY = newY - (newY % 10);
+		int newX, newY;
+		generateRandomXY(newX, newY);
+		bool invalidPosition = true;
+		while (invalidPosition) {
+			invalidPosition = false;
+			for (auto snakeSection = snake.snakeSections.begin(); snakeSection != snake.snakeSections.end(); ++snakeSection) {
+				if (newX == snakeSection->x && newY == snakeSection->y) {
+					invalidPosition = true;
+					generateRandomXY(newX, newY);
+				}
+			}
+		}
+		
 		food.setPosition(newX, newY );
 	};
 public:
@@ -218,7 +259,7 @@ public:
 
 	void start() {
 		srand(0);
-		food.setPosition(300, 300);
+		addFood();
 	};
 
 	void runState() {
@@ -228,13 +269,12 @@ public:
 			updateFromPointGain();
 		}
 		snake.move();	
-		drawGame();
 	};
 
 	void reset() {
 		score = 0;
 		snake = Snake(400, 400, 'l');
-		food.setPosition(300, 300);
+		addFood();
 	};
 
 	void terminate() {
@@ -247,14 +287,29 @@ public:
 
 };
 
-int main(int argc, char* args[]) {
+void init() {
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
+};
+
+void terminate() {
+	TTF_Quit();
+	SDL_Quit();
+};
+
+int main(int argc, char* args[]) {
+	init();
+
 	Game game;
 	game.start();
 
+
 	bool quit = false;
 	SDL_Event event;
+	Uint32 startTick = SDL_GetTicks();
+	Uint32 TimeTillNextGameTick = 0;
+	Uint32 timePerGameTick = DEFAULT_TIME_PER_GAME_TICK;
+	int score = game.score;
 	while (!quit) {
 		while (SDL_PollEvent(&event) != 0) {
 			if (event.type == SDL_QUIT) {
@@ -263,13 +318,26 @@ int main(int argc, char* args[]) {
 				game.handleKeyPress(event);
 			}
 		}
-		game.runState();
-		SDL_Delay(250);
+		Uint32 currentTick = SDL_GetTicks();
+		TimeTillNextGameTick += currentTick - startTick;
+		startTick = currentTick;
+
+		while(TimeTillNextGameTick > timePerGameTick) {
+			TimeTillNextGameTick -= timePerGameTick;
+			game.runState();
+			if (game.score == 0) {
+				score = 0;
+				timePerGameTick = DEFAULT_TIME_PER_GAME_TICK;
+			} else if (score < game.score) {
+				score++;
+				timePerGameTick = (Uint32)(DEFAULT_TIME_MULTIPLIER*timePerGameTick);
+			}
+		}
+		game.drawGame();
 	}
 
 	game.terminate();
-	TTF_Quit();
-	SDL_Quit();
+	terminate();
 
 	return 0;
 }
